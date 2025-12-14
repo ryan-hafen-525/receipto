@@ -1,0 +1,202 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: receipto-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-receipto}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-receipto_password}
+      POSTGRES_DB: ${POSTGRES_DB:-receipto}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-receipto} -d ${POSTGRES_DB:-receipto}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+  # SeaweedFS - Master Server
+  seaweedfs-master:
+    image: chrislusf/seaweedfs:latest
+    container_name: receipto-seaweed-master
+    command: master -ip=seaweedfs-master -port=9333
+    ports:
+      - "9333:9333"
+      - "19333:19333"
+    volumes:
+      - seaweedfs_master:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+  # SeaweedFS - Volume Server
+  seaweedfs-volume:
+    image: chrislusf/seaweedfs:latest
+    container_name: receipto-seaweed-volume
+    command: volume -mserver="seaweedfs-master:9333" -port=8080 -ip=seaweedfs-volume
+    ports:
+      - "8080:8080"
+      - "18080:18080"
+    volumes:
+      - seaweedfs_volume:/data
+    depends_on:
+      seaweedfs-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8080/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+  # SeaweedFS - Filer (for S3 API support)
+  seaweedfs-filer:
+    image: chrislusf/seaweedfs:latest
+    container_name: receipto-seaweed-filer
+    command: filer -master="seaweedfs-master:9333" -ip=seaweedfs-filer
+    ports:
+      - "8888:8888"
+      - "18888:18888"
+    volumes:
+      - seaweedfs_filer:/data
+    depends_on:
+      seaweedfs-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8888/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+  # SeaweedFS - S3 Gateway
+  seaweedfs-s3:
+    image: chrislusf/seaweedfs:latest
+    container_name: receipto-seaweed-s3
+    command: s3 -filer="seaweedfs-filer:8888" -port=8333 -ip.bind=0.0.0.0
+    ports:
+      - "8333:8333"
+    environment:
+      AWS_ACCESS_KEY_ID: ${SEAWEEDFS_ACCESS_KEY:-seaweed_admin}
+      AWS_SECRET_ACCESS_KEY: ${SEAWEEDFS_SECRET_KEY:-seaweed_secret}
+    depends_on:
+      seaweedfs-filer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O-", "http://localhost:8333/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: receipto-backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${POSTGRES_USER:-receipto}:${POSTGRES_PASSWORD:-receipto_password}@db:5432/${POSTGRES_DB:-receipto}
+
+      # AWS Credentials (for Textract)
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-west-2}
+
+      # LLM API Keys
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+
+      # SeaweedFS (S3-compatible)
+      SEAWEEDFS_URL: http://seaweedfs-volume:8080
+      SEAWEEDFS_S3_ENDPOINT: http://seaweedfs-s3:8333
+      SEAWEEDFS_ACCESS_KEY: ${SEAWEEDFS_ACCESS_KEY:-seaweed_admin}
+      SEAWEEDFS_SECRET_KEY: ${SEAWEEDFS_SECRET_KEY:-seaweed_secret}
+
+      # Application settings
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      seaweedfs-s3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: receipto-frontend
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - receipto-network
+    restart: unless-stopped
+
+networks:
+  receipto-network:
+    driver: bridge
+    name: receipto-network
+
+volumes:
+  postgres_data:
+    driver: local
+    name: receipto-postgres-data
+  seaweedfs_master:
+    driver: local
+    name: receipto-seaweedfs-master
+  seaweedfs_volume:
+    driver: local
+    name: receipto-seaweedfs-volume
+  seaweedfs_filer:
+    driver: local
+    name: receipto-seaweedfs-filer

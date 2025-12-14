@@ -1,0 +1,25 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    command: fastapi dev main.py --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./api:/app
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: debug
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    command: npm run dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      NODE_ENV: development
