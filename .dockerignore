@@ -34,3 +34,5 @@ Thumbs.db
 
 # Development containers
 .devcontainer
+
+**/__pycache__/
