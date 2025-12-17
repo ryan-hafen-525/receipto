@@ -19,7 +19,8 @@
         "anthropic.claude-code",
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "google.geminicodeassist"
       ],
       "settings": {
         "editor.formatOnSave": true,
@@ -45,11 +46,13 @@
   "remoteUser": "ubuntu",
   "mounts": [
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
-    "source=claude-code-config-${devcontainerId},target=/home/ubuntu/.claude,type=volume"
+    "source=claude-code-config-${devcontainerId},target=/home/ubuntu/.claude,type=volume",
+    "source=gemini-config-${devcontainerId},target=/home/ubuntu/.gemini,type=volume"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "CLAUDE_CONFIG_DIR": "/home/ubuntu/.claude",
+    "GEMINI_CONFIG_DIR": "/home/ubuntu/.gemini",
     "POWERLEVEL9K_DISABLE_GITSTATUS": "true"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",

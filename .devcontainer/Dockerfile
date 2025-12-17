@@ -63,8 +63,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/ubuntu/.claude && \
-  chown -R ubuntu:ubuntu /workspace /home/ubuntu/.claude
+RUN mkdir -p /workspace /home/ubuntu/.claude /home/ubuntu/.gemini && \
+  chown -R ubuntu:ubuntu /workspace /home/ubuntu/.claude /home/ubuntu/.gemini
 
 WORKDIR /workspace
 
@@ -100,6 +100,8 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+
+RUN npm install -g @google/gemini-cli
 
 
 # Copy and set up firewall script
