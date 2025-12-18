@@ -20,7 +20,11 @@
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "eamodio.gitlens",
-        "google.geminicodeassist"
+        "google.geminicodeassist",
+        "ms-python.python",
+        "ms-python.debugpy",
+        "ms-python.vscode-pylance",
+        "ms-python.vscode-python-envs"
       ],
       "settings": {
         "editor.formatOnSave": true,
