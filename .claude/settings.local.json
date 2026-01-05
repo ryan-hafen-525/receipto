@@ -8,7 +8,15 @@
       "Bash(cat:*)",
       "Bash(test:*)",
       "Bash(curl:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(python3 -m pytest:*)",
+      "Bash(source:*)",
+      "Bash(pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(PYTHONPATH=/workspace/api pytest:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }

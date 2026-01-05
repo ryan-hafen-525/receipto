@@ -74,6 +74,11 @@ RUN ARCH=$(dpkg --print-architecture) && \
   sudo dpkg -i "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb" && \
   rm "git-delta_${GIT_DELTA_VERSION}_${ARCH}.deb"
 
+USER root
+
+RUN apt-get update && apt-get install -y docker.io
+RUN usermod -aG docker ubuntu
+
 # Set up non-root user
 USER ubuntu
 

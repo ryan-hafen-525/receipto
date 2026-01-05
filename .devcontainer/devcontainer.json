@@ -14,6 +14,12 @@
     "--cap-add=NET_RAW"
   ],
   "customizations": {
+    "jetbrains": {
+      "settings": {
+        "com.intellij:app:BuiltInServerOptions.builtInServerPort": 63080,
+        "com.intellij:app:HttpConfigurable.use_proxy_pac": true
+      }
+    },
     "vscode": {
       "extensions": [
         "anthropic.claude-code",
@@ -49,6 +55,7 @@
   },
   "remoteUser": "ubuntu",
   "mounts": [
+    "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
     "source=claude-code-config-${devcontainerId},target=/home/ubuntu/.claude,type=volume",
     "source=gemini-config-${devcontainerId},target=/home/ubuntu/.gemini,type=volume"
