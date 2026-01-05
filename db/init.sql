@@ -33,7 +33,16 @@ CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) UNIQUE NOT NULL,
     monthly_budget_limit DECIMAL(10, 2),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create settings table (key-value store for app configuration)
+CREATE TABLE IF NOT EXISTS settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value TEXT NOT NULL,
+    encrypted BOOLEAN DEFAULT FALSE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default categories
@@ -50,6 +59,14 @@ INSERT INTO categories (name, monthly_budget_limit) VALUES
     ('Shopping', 200.00),
     ('Other', 100.00)
 ON CONFLICT (name) DO NOTHING;
+
+-- Insert default settings
+INSERT INTO settings (key, value, encrypted) VALUES
+    ('llm_provider', 'gemini', FALSE),
+    ('llm_model', 'gemini-2.0-flash', FALSE),
+    ('theme', 'system', FALSE),
+    ('aws_region', 'us-west-2', FALSE)
+ON CONFLICT (key) DO NOTHING;
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_receipts_merchant ON receipts(merchant_name);
@@ -69,6 +86,14 @@ $$ language 'plpgsql';
 
 -- Create trigger for receipts table
 CREATE TRIGGER update_receipts_updated_at BEFORE UPDATE ON receipts
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger for categories table
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger for settings table
+CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON settings
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Grant permissions

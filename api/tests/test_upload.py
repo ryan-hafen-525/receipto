@@ -153,3 +153,74 @@ class TestUploadEdgeCases:
         assert response1.status_code == 200
         assert response2.status_code == 200
         assert response1.json()["receipt_id"] != response2.json()["receipt_id"]
+
+
+class TestMultipleUploadsSequential:
+    """Tests simulating multiple sequential uploads (as done by frontend)."""
+
+    def test_sequential_uploads_multiple_files(self, client, sample_png, sample_jpeg, sample_pdf):
+        """Test uploading multiple files sequentially returns unique IDs and all succeed."""
+        files_to_upload = [sample_png, sample_jpeg, sample_pdf]
+        receipt_ids = []
+
+        for filename, file_obj, content_type in files_to_upload:
+            response = client.post(
+                "/receipts/upload",
+                files={"file": (filename, io.BytesIO(file_obj.read()), content_type)}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert "receipt_id" in data
+            assert data["status"] == "pending"
+            receipt_ids.append(data["receipt_id"])
+
+        # Verify all IDs are unique
+        assert len(receipt_ids) == len(set(receipt_ids))
+
+    def test_sequential_uploads_with_one_failure(self, client, sample_png, sample_text_file):
+        """Test that one failed upload doesn't affect subsequent uploads."""
+        # First upload (should succeed)
+        filename1, file_obj1, content_type1 = sample_png
+        response1 = client.post(
+            "/receipts/upload",
+            files={"file": (filename1, io.BytesIO(file_obj1.read()), content_type1)}
+        )
+        assert response1.status_code == 200
+
+        # Second upload (should fail - invalid file type)
+        filename2, file_obj2, content_type2 = sample_text_file
+        response2 = client.post(
+            "/receipts/upload",
+            files={"file": (filename2, io.BytesIO(file_obj2.read()), content_type2)}
+        )
+        assert response2.status_code == 400
+
+        # Third upload (should succeed - verify previous failure didn't affect server)
+        file_obj1.seek(0)
+        response3 = client.post(
+            "/receipts/upload",
+            files={"file": (filename1, io.BytesIO(file_obj1.read()), content_type1)}
+        )
+        assert response3.status_code == 200
+
+        # Verify the two successful uploads have different IDs
+        assert response1.json()["receipt_id"] != response3.json()["receipt_id"]
+
+    def test_rapid_sequential_uploads(self, client, sample_png):
+        """Test rapid sequential uploads (simulating fast frontend queue processing)."""
+        filename, file_obj, content_type = sample_png
+        num_uploads = 5
+        receipt_ids = []
+
+        for i in range(num_uploads):
+            file_obj.seek(0)
+            response = client.post(
+                "/receipts/upload",
+                files={"file": (f"receipt{i}.png", io.BytesIO(file_obj.read()), content_type)}
+            )
+            assert response.status_code == 200
+            receipt_ids.append(response.json()["receipt_id"])
+
+        # Verify all uploads succeeded and generated unique IDs
+        assert len(receipt_ids) == num_uploads
+        assert len(set(receipt_ids)) == num_uploads  # All IDs are unique
